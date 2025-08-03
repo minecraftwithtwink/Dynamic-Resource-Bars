@@ -31,6 +31,7 @@ import dev.muon.dynamic_resource_bars.util.TickHandler;
 import dev.muon.dynamic_resource_bars.util.EditModeManager;
 import dev.muon.dynamic_resource_bars.util.HorizontalAlignment;
 import dev.muon.dynamic_resource_bars.util.TextBehavior;
+import dev.muon.dynamic_resource_bars.util.AnchorPoint;
 
 public class ArmorBarRenderer {
     private static long armorTextStartTime = 0;
@@ -77,11 +78,12 @@ public class ArmorBarRenderer {
     public static ScreenRect getScreenRect(Player player) {
         if (player == null) return new ScreenRect(0,0,0,0);
         var config = ModConfigManager.getClient();
-        Position anchorPos = HUDPositioning.getPositionFromAnchor(config.armorBarAnchor);
-        
-        Position finalPos = anchorPos.offset(config.armorTotalXOffset, config.armorTotalYOffset);
-        int backgroundWidth = config.armorBackgroundWidth;
+        int globalPercent = Math.max(0, Math.min(100, config.globalBarWidthModifier));
+        int backgroundWidth = Math.round(config.armorBackgroundWidth * (globalPercent / 100.0f));
         int backgroundHeight = config.armorBackgroundHeight;
+        ScreenRect parentBox = new ScreenRect(0, 0, backgroundWidth, backgroundHeight);
+        Position anchorPos = HUDPositioning.alignBoundingBoxToAnchor(parentBox, config.armorBarAnchor);
+        Position finalPos = anchorPos.offset(config.armorTotalXOffset, config.armorTotalYOffset);
         return new ScreenRect(finalPos.x(), finalPos.y(), backgroundWidth, backgroundHeight);
     }
 
@@ -92,6 +94,7 @@ public class ArmorBarRenderer {
         }
 
         ClientConfig config = ModConfigManager.getClient();
+        int globalPercent = Math.max(0, Math.min(100, config.globalBarWidthModifier));
         int x = complexRect.x();
         int y = complexRect.y();
 
@@ -99,18 +102,18 @@ public class ArmorBarRenderer {
             case BACKGROUND:
                 return new ScreenRect(x + config.armorBackgroundXOffset, 
                                       y + config.armorBackgroundYOffset,
-                                      config.armorBackgroundWidth,
+                                      Math.round(config.armorBackgroundWidth * (globalPercent / 100.0f)),
                                       config.armorBackgroundHeight);
             case BAR_MAIN:
                 return new ScreenRect(x + config.armorBarXOffset,
                                       y + config.armorBarYOffset,
-                                      config.armorBarWidth,
+                                      Math.round(config.armorBarWidth * (globalPercent / 100.0f)),
                                       config.armorBarHeight);
             case TEXT:
                 // Text area now positioned relative to complexRect, using armorBarWidth/Height for its dimensions
                 return new ScreenRect(x + config.armorTextXOffset, 
                                       y + config.armorTextYOffset, 
-                                      config.armorBarWidth, 
+                                      Math.round(config.armorBarWidth * (globalPercent / 100.0f)), 
                                       config.armorBarHeight);
             case ICON:
                 // Icon positioned relative to complexRect top-left
@@ -154,8 +157,7 @@ public class ArmorBarRenderer {
         RenderSystem.enableBlend();
         RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, currentAlphaForRender);
         
-        Position armorPos = HUDPositioning.getPositionFromAnchor(config.armorBarAnchor)
-                .offset(config.armorTotalXOffset, config.armorTotalYOffset);
+        Position armorPos = HUDPositioning.getHealthAnchor(); // Or implement getArmorAnchor() if needed
 
         int backgroundWidth = config.armorBackgroundWidth;
         int backgroundHeight = config.armorBackgroundHeight;
@@ -164,7 +166,7 @@ public class ArmorBarRenderer {
         int barOnlyXOffset = config.armorBarXOffset;
         int barOnlyYOffset = config.armorBarYOffset;
         int iconSize = config.armorIconSize;
-        boolean isRightAnchored = config.armorBarAnchor.getSide() == HUDPositioning.AnchorSide.RIGHT;
+        boolean isRightAnchored = config.armorBarAnchor == AnchorPoint.TOP_RIGHT || config.armorBarAnchor == AnchorPoint.CENTER_RIGHT || config.armorBarAnchor == AnchorPoint.BOTTOM_RIGHT;
 
         int xPos = armorPos.x();
         int yPos = armorPos.y();
@@ -216,23 +218,6 @@ public class ArmorBarRenderer {
             );
         }
 
-        if (shouldRenderText() || EditModeManager.isEditModeEnabled()) {
-            ScreenRect textRect = getSubElementRect(SubElementType.TEXT, player);
-            int textX = textRect.x() + (textRect.width() / 2);
-            int textY = textRect.y() + (textRect.height() / 2);
-            int color = getTextColor();
-            HorizontalAlignment alignment = config.armorTextAlign;
-            
-            int baseX = textRect.x();
-            if (alignment == HorizontalAlignment.CENTER) {
-                baseX = textX;
-            } else if (alignment == HorizontalAlignment.RIGHT) {
-                baseX = textRect.x() + textRect.width();
-            }
-
-            RenderUtil.renderArmorText(armorValue,
-                    graphics, baseX, textY, color, alignment);
-        }
         renderProtectionOverlay(graphics, player, config, xPos, yPos, barWidth, barHeight, barOnlyXOffset, barOnlyYOffset, iconSize);
 
         if (config.enableArmorIcon || EditModeManager.isEditModeEnabled()) {
@@ -328,40 +313,6 @@ public class ArmorBarRenderer {
         alpha = Math.max(10, Math.min(255, alpha));
 
         return (alpha << 24) | baseColor;
-    }
-
-    private static boolean shouldRenderText() {
-        if (EditModeManager.isEditModeEnabled()) {
-            return true;
-        }
-        
-        TextBehavior behavior = ModConfigManager.getClient().showArmorText;
-        if (EditModeManager.isEditModeEnabled()) {
-            if (behavior == TextBehavior.ALWAYS || behavior == TextBehavior.WHEN_NOT_FULL) {
-                return true;
-            }
-        }
-        if (behavior == TextBehavior.NEVER) {
-            return false;
-        }
-        if (behavior == TextBehavior.ALWAYS) {
-            return true;
-        }
-        
-        // WHEN_NOT_FULL logic - for armor, we can interpret this as "when armor is not 0"
-        int armorValue = Minecraft.getInstance().player.getArmorValue();
-        boolean hasArmor = armorValue > 0;
-        
-        if (!hasArmor) {
-            if (armorTextStartTime == 0) { // Just lost armor
-                armorTextStartTime = System.currentTimeMillis();
-            }
-            // Show for a short duration after losing armor
-            return (System.currentTimeMillis() - armorTextStartTime) < RenderUtil.TEXT_DISPLAY_DURATION;
-        } else {
-            armorTextStartTime = 0; // Reset timer when armor is present
-            return true; // Has armor, so show
-        }
     }
 
     public static void triggerTextDisplay() {

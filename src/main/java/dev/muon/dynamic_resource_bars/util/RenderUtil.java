@@ -1,124 +1,117 @@
 package dev.muon.dynamic_resource_bars.util;
 
-import com.mojang.blaze3d.vertex.PoseStack;
-import dev.muon.dynamic_resource_bars.config.ModConfigManager;
-import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.systems.RenderSystem;
+import dev.muon.dynamic_resource_bars.config.ModConfigManager; // ADDED THIS IMPORT
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth; // ADDED THIS IMPORT
 
 public class RenderUtil {
-    public static final long TEXT_DISPLAY_DURATION = 2000L;
-    public static final long TEXT_FADEOUT_DURATION = 500L;
     public static final int BASE_TEXT_ALPHA = 200;
-    // Only used for the mana bar
-    public static final long BAR_FADEOUT_DURATION = 1500L;
+    public static final long TEXT_DISPLAY_DURATION = 1000; // milliseconds
+    public static final long BAR_FADEOUT_DURATION = 500; // milliseconds
 
-    public static void renderText(float current, float max, GuiGraphics graphics, int baseX, int baseY, int color, HorizontalAlignment alignment) {
-        Minecraft minecraft = Minecraft.getInstance();
-        PoseStack poseStack = graphics.pose();
-        poseStack.pushPose();
-        float scalingFactor = (float) ModConfigManager.getClient().textScalingFactor;
-        float globalTextSize = ModConfigManager.getClient().globalTextSize;
-        float finalScale = scalingFactor * globalTextSize;
+    public static final long DAMAGE_INDICATOR_HOLD_MS = 500L;
+    public static final long DAMAGE_INDICATOR_ANIM_DURATION_MS = 200L;
 
-        // Apply scaling
-        poseStack.scale(finalScale, finalScale, 1.0f);
-        int scaledX = (int) (baseX / finalScale);
-        // Adjust Y for vertical centering. Font height is 9, so half is 4.5, round to 4 or 5.
-        // Minecraft's drawString typically treats y as the top of the text.
-        // To center, we need to shift it up by half the text height.
-        // Font.lineHeight is usually 9.
-        int scaledY = (int) (baseY / finalScale) - (minecraft.font.lineHeight / 2);
+    /**
+     * Calculates the alpha value for text fading out.
+     * @param timeSinceFull Time in milliseconds since the bar became full.
+     * @return Alpha value from 255 down to 0.
+     */
+    public static int calculateTextAlpha(long timeSinceFull) {
+        if (timeSinceFull > TEXT_DISPLAY_DURATION) {
+            return 0;
+        }
+        float fadeProgress = (float) timeSinceFull / TEXT_DISPLAY_DURATION;
+        return (int) (BASE_TEXT_ALPHA * (1.0F - fadeProgress));
+    }
 
+    // Overlay flash animation
+    private static long tick = 0; // Not actually used here, but kept if you plan to use this for general flashes
+    private static final long FLASH_DURATION = 20; // Ticks for one full flash cycle (e.g., 1 second = 20 ticks)
+    private static final float MAX_FLASH_ALPHA = 0.5f; // Not currently used but kept for context
 
-        String currentText = String.valueOf((int)current);
-        String maxText = String.valueOf((int)max);
-        String slashText = " / "; // Added spaces for better readability
-        Component fullTextComponent = Component.literal(currentText + slashText + maxText);
-        String fullText = fullTextComponent.getString();
-        int totalTextWidth = minecraft.font.width(fullText);
+    public static void setTick(long currentTick) {
+        tick = currentTick; // Not actually used here
+    }
 
-        int actualX = scaledX;
-        if (alignment == HorizontalAlignment.CENTER) {
-            actualX = scaledX - (totalTextWidth / 2);
-        } else if (alignment == HorizontalAlignment.RIGHT) {
-            actualX = scaledX - totalTextWidth;
+    public static float getOverlayFlashAlpha() {
+        if (Minecraft.getInstance().player == null) return 0.0f;
+        // Simple sinusoidal fade: oscillates between 0 and 1, used for pulsing effects
+        float progress = (float)(Minecraft.getInstance().player.tickCount % FLASH_DURATION) / FLASH_DURATION;
+        return Mth.sin(progress * Mth.PI * 2.0f) * 0.5f + 0.5f; // Oscillates between 0 and 1
+    }
+
+    /**
+     * Draws a texture using a horizontal 3-slice (9-slice with zero vertical padding) method.
+     * The left and right caps maintain their fixed widths, while the middle section stretches.
+     * Assumes source texture's vertical dimensions are uniform (no vertical stretching).
+     *
+     * @param graphics The GuiGraphics instance.
+     * @param texture The ResourceLocation of the texture to draw.
+     * @param x The X coordinate to draw the texture at.
+     * @param y The Y coordinate to draw the texture at.
+     * @param destWidth The desired total width to draw the texture.
+     * @param destHeight The desired total height to draw the texture (will be used for all slices).
+     * @param sourceTextureWidth The actual width of the source texture file.
+     * @param sourceTextureHeight The actual height of the source texture file.
+     * @param leftPadding The fixed width of the left end padding in the source texture.
+     * @param rightPadding The fixed width of the right end padding in the source texture.
+     * @param alpha The alpha transparency to apply to the texture (0.0f to 1.0f).
+     */
+    public static void drawHorizontalNineSlice(GuiGraphics graphics, ResourceLocation texture, int x, int y, int destWidth, int destHeight, int sourceTextureWidth, int sourceTextureHeight, int leftPadding, int rightPadding, float alpha) {
+        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, alpha); // Apply alpha to the entire drawn texture
+        RenderSystem.enableBlend(); // Ensure blending is enabled for transparency (important for alpha)
+        RenderSystem.defaultBlendFunc(); // Standard blend function
+
+        int sourceStretchableWidth = sourceTextureWidth - leftPadding - rightPadding;
+        int destMiddleWidth = destWidth - leftPadding - rightPadding;
+        if (destMiddleWidth < 0) {
+            destMiddleWidth = 0; // No stretchable middle, caps might overlap
         }
 
-        graphics.drawString(minecraft.font, fullTextComponent, actualX, scaledY, color, true);
-
-        poseStack.popPose();
-    }
-
-    // Overload for existing calls that don't specify alignment (defaults to CENTER)
-    public static void renderText(float current, float max, GuiGraphics graphics, int baseX, int baseY, int color) {
-        renderText(current, max, graphics, baseX, baseY, color, HorizontalAlignment.CENTER);
-    }
-
-    public static void renderAdditionText(String text, GuiGraphics graphics, int baseX, int baseY, int color) {
-        Minecraft minecraft = Minecraft.getInstance();
-        PoseStack poseStack = graphics.pose();
-        poseStack.pushPose();
-        float scalingFactor = (float) ModConfigManager.getClient().textScalingFactor;
-        float globalTextSize = ModConfigManager.getClient().globalTextSize;
-        float finalScale = scalingFactor * globalTextSize;
-
-        int xPos = (int) (baseX / finalScale);
-        int yPos = (int) (baseY / finalScale) - (minecraft.font.lineHeight / 2);
-        poseStack.scale(finalScale, finalScale, 1.0f);
-
-        graphics.drawString(minecraft.font, text, xPos, yPos, color, true);
-
-        poseStack.popPose();
-    }
-
-    public static void renderArmorText(float value, GuiGraphics graphics, int baseX, int baseY, int color, HorizontalAlignment alignment) {
-        Minecraft minecraft = Minecraft.getInstance();
-        PoseStack poseStack = graphics.pose();
-        poseStack.pushPose();
-        float scalingFactor = (float) ModConfigManager.getClient().textScalingFactor;
-        float globalTextSize = ModConfigManager.getClient().globalTextSize;
-        float finalScale = scalingFactor * globalTextSize;
-
-        int scaledX = (int) (baseX / finalScale);
-        int scaledY = (int) (baseY / finalScale) - (minecraft.font.lineHeight / 2); // Added vertical centering
-        poseStack.scale(finalScale, finalScale, 1.0f);
-
-        String text;
-        if (Math.abs(value - Math.floor(value)) < 0.1f) {
-            text = String.valueOf((int)value);
-        } else {
-            text = String.format("%.1f", value);
-        }
-        
-        int textWidth = minecraft.font.width(text);
-        int actualX = scaledX;
-        if (alignment == HorizontalAlignment.CENTER) {
-            actualX = scaledX - (textWidth / 2);
-        } else if (alignment == HorizontalAlignment.RIGHT) {
-            actualX = scaledX - textWidth;
+        // --- Tile Left Cap Vertically ---
+        for (int tileY = 0; tileY < destHeight; tileY += sourceTextureHeight) {
+            int drawHeight = Math.min(sourceTextureHeight, destHeight - tileY);
+            graphics.blit(texture, x, y + tileY,
+                    0, 0, // Source U, V
+                    leftPadding, drawHeight, // Destination Width, Height (left padding)
+                    sourceTextureWidth, sourceTextureHeight);
         }
 
-        graphics.drawString(minecraft.font, text, actualX, scaledY, color, true);
-
-        poseStack.popPose();
-    }
-
-    public static void renderArmorText(float value, GuiGraphics graphics, int baseX, int baseY, int color) {
-        renderArmorText(value, graphics, baseX, baseY, color, HorizontalAlignment.CENTER);
-    }
-
-    public static int calculateTextAlpha(long timeSinceEvent) {
-        int alpha;
-        if (timeSinceEvent < TEXT_DISPLAY_DURATION) {
-            alpha = timeSinceEvent > TEXT_DISPLAY_DURATION - TEXT_FADEOUT_DURATION
-                    ? (int)(BASE_TEXT_ALPHA * (TEXT_DISPLAY_DURATION - timeSinceEvent) / TEXT_FADEOUT_DURATION)
-                    : BASE_TEXT_ALPHA;
-        } else {
-            alpha = 0;
+        // --- Tile Right Cap Vertically ---
+        for (int tileY = 0; tileY < destHeight; tileY += sourceTextureHeight) {
+            int drawHeight = Math.min(sourceTextureHeight, destHeight - tileY);
+            graphics.blit(texture, x + destWidth - rightPadding, y + tileY,
+                    sourceTextureWidth - rightPadding, 0, // Source U, V (start of right padding in texture)
+                    rightPadding, drawHeight, // Destination Width, Height (right padding)
+                    sourceTextureWidth, sourceTextureHeight);
         }
-        // Values too close to 0 cause rendering artifacts
-        return Math.max(10, Math.min(alpha, BASE_TEXT_ALPHA));
-    }
 
+        // --- Tile Middle Section Horizontally and Vertically ---
+        if (destMiddleWidth > 0 && sourceStretchableWidth > 0) {
+            int tiledX = x + leftPadding;
+            int remainingX = destMiddleWidth;
+            while (remainingX > 0) {
+                int tileWidth = Math.min(sourceStretchableWidth, remainingX);
+                int tileX = tiledX;
+                // For each horizontal tile, tile vertically as well
+                for (int tileY = 0; tileY < destHeight; tileY += sourceTextureHeight) {
+                    int drawHeight = Math.min(sourceTextureHeight, destHeight - tileY);
+                    graphics.blit(texture, tileX, y + tileY,
+                            leftPadding, 0, // Source U, V (start of middle section in texture)
+                            tileWidth, drawHeight, // Destination Width, Height (tile)
+                            sourceTextureWidth, sourceTextureHeight);
+                }
+                tiledX += tileWidth;
+                remainingX -= tileWidth;
+            }
+        }
+
+        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f); // Reset shader color to full white
+        // Don't disable blend here, as other rendering might rely on it.
+    }
 }

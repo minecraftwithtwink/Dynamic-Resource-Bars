@@ -3,7 +3,7 @@ package dev.muon.dynamic_resource_bars.config;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import dev.muon.dynamic_resource_bars.DynamicResourceBars; // For logging
-import dev.muon.dynamic_resource_bars.util.HUDPositioning;
+import dev.muon.dynamic_resource_bars.util.AnchorPoint;
 import dev.muon.dynamic_resource_bars.util.HorizontalAlignment;
 import dev.muon.dynamic_resource_bars.util.TextBehavior;
 import dev.muon.dynamic_resource_bars.util.BarRenderBehavior;
@@ -29,33 +29,35 @@ public class ClientConfig {
     // General
     public static final float DEFAULT_TEXT_SCALING_FACTOR = 0.5f;
     public double textScalingFactor = DEFAULT_TEXT_SCALING_FACTOR;
-    
+
     // Global text defaults
     public static final int DEFAULT_TEXT_COLOR = 0xFFFFFF; // White
     public static final int DEFAULT_TEXT_OPACITY = 200; // Out of 255
     public static final float DEFAULT_TEXT_SIZE = 1.0f;
-    
+
     // Global text fields
     public int globalTextColor = DEFAULT_TEXT_COLOR;
     public int globalTextOpacity = DEFAULT_TEXT_OPACITY;
     public float globalTextSize = DEFAULT_TEXT_SIZE;
 
+    // Global bar width modifier (applies to all bars)
+    public static final int DEFAULT_GLOBAL_BAR_WIDTH_MODIFIER = 100; // 100 = 100% (no change)
+    public int globalBarWidthModifier = DEFAULT_GLOBAL_BAR_WIDTH_MODIFIER; // 0-100, percentage of original width
+
     // Health Defaults & Fields
     public static final boolean DEFAULT_ENABLE_HEALTH_BAR = true;
-    public static final HUDPositioning.BarPlacement DEFAULT_HEALTH_BAR_ANCHOR = HUDPositioning.BarPlacement.HEALTH;
+    public static final AnchorPoint DEFAULT_HEALTH_BAR_ANCHOR = AnchorPoint.BOTTOM_LEFT;
     public static final boolean DEFAULT_FADE_HEALTH_WHEN_FULL = false;
     public static final TextBehavior DEFAULT_SHOW_HEALTH_TEXT = TextBehavior.WHEN_NOT_FULL;
     public static final HorizontalAlignment DEFAULT_HEALTH_TEXT_ALIGN = HorizontalAlignment.CENTER;
     public static final boolean DEFAULT_ENABLE_HEALTH_FOREGROUND = false;
     public static final boolean DEFAULT_ENABLE_HEALTH_BACKGROUND = true;
     public static final FillDirection DEFAULT_HEALTH_FILL_DIRECTION = FillDirection.HORIZONTAL;
-    public static final int DEFAULT_HEALTH_BACKGROUND_WIDTH = 80;
+    // Removed width properties for Health Bar
     public static final int DEFAULT_HEALTH_BACKGROUND_HEIGHT = 10;
-    public static final int DEFAULT_HEALTH_BAR_WIDTH = 74;
-    public static final int DEFAULT_HEALTH_BAR_HEIGHT = 4;
+    public static final int DEFAULT_HEALTH_BAR_HEIGHT = 5;
     public static final int DEFAULT_HEALTH_BAR_ANIMATION_CYCLES = 32;
     public static final int DEFAULT_HEALTH_BAR_FRAME_HEIGHT = 32;
-    public static final int DEFAULT_HEALTH_OVERLAY_WIDTH = 80;
     public static final int DEFAULT_HEALTH_OVERLAY_HEIGHT = 10;
     public static final int DEFAULT_HEALTH_BAR_X_OFFSET = 3;
     public static final int DEFAULT_HEALTH_BAR_Y_OFFSET = 3;
@@ -72,22 +74,28 @@ public class ClientConfig {
     public static final float DEFAULT_HEALTH_TEXT_SIZE = DEFAULT_TEXT_SIZE;
     public static final int DEFAULT_HEALTH_ABSORPTION_TEXT_X_OFFSET = 65;
     public static final int DEFAULT_HEALTH_ABSORPTION_TEXT_Y_OFFSET = 3;
+    public static final int DEFAULT_HEALTH_BACKGROUND_PADDING = 0;
+    public static final int DEFAULT_HEALTH_FOREGROUND_PADDING = 0;
+    public static final boolean DEFAULT_ENABLE_HEALTH_TRAILING_ICON = true;
+    public static final int DEFAULT_HEALTH_TRAILING_ICON_SIZE = 5;
+    public static final int DEFAULT_HEALTH_TRAILING_ICON_X_OFFSET = 0;
+    public static final int DEFAULT_HEALTH_TRAILING_ICON_Y_OFFSET = 0;
+    public static final int DEFAULT_HEALTH_BAR_WIDTH_MODIFIER = 100; // Now percentage, 100 = 100%
+    public static final boolean DEFAULT_ENABLE_HEALTH_RESTORATION_OVERLAY = true;
 
     public boolean enableHealthBar;
-    public HUDPositioning.BarPlacement healthBarAnchor;
+    public AnchorPoint healthBarAnchor;
     public boolean fadeHealthWhenFull;
     public TextBehavior showHealthText;
     public HorizontalAlignment healthTextAlign;
     public boolean enableHealthForeground;
     public boolean enableHealthBackground;
     public FillDirection healthFillDirection;
-    public int healthBackgroundWidth;
+    // Removed width properties for Health Bar
     public int healthBackgroundHeight;
-    public int healthBarWidth;
     public int healthBarHeight;
     public int healthBarAnimationCycles;
     public int healthBarFrameHeight;
-    public int healthOverlayWidth;
     public int healthOverlayHeight;
     public int healthBarXOffset;
     public int healthBarYOffset;
@@ -104,10 +112,18 @@ public class ClientConfig {
     public float healthTextSize;
     public int healthAbsorptionTextXOffset;
     public int healthAbsorptionTextYOffset;
+    public int healthBackgroundPadding = DEFAULT_HEALTH_BACKGROUND_PADDING;
+    public int healthForegroundPadding = DEFAULT_HEALTH_FOREGROUND_PADDING;
+    public boolean enableHealthTrailingIcon;
+    public int healthTrailingIconSize;
+    public int healthTrailingIconXOffset;
+    public int healthTrailingIconYOffset;
+    public int healthBarWidthModifier; // 0-100, percentage of original width
+    public boolean enableHealthRestorationOverlay;
 
     // Stamina Defaults & Fields
     public static final boolean DEFAULT_ENABLE_STAMINA_BAR = true;
-    public static final HUDPositioning.BarPlacement DEFAULT_STAMINA_BAR_ANCHOR = HUDPositioning.BarPlacement.HUNGER;
+    public static final AnchorPoint DEFAULT_STAMINA_BAR_ANCHOR = AnchorPoint.BOTTOM_LEFT;
     public static final boolean DEFAULT_FADE_STAMINA_WHEN_FULL = false;
     public static final TextBehavior DEFAULT_SHOW_STAMINA_TEXT = TextBehavior.NEVER;
     public static final HorizontalAlignment DEFAULT_STAMINA_TEXT_ALIGN = HorizontalAlignment.CENTER;
@@ -135,9 +151,14 @@ public class ClientConfig {
     public static final int DEFAULT_STAMINA_TEXT_COLOR = DEFAULT_TEXT_COLOR;
     public static final int DEFAULT_STAMINA_TEXT_OPACITY = DEFAULT_TEXT_OPACITY;
     public static final float DEFAULT_STAMINA_TEXT_SIZE = DEFAULT_TEXT_SIZE;
+    public static final int DEFAULT_STAMINA_BAR_WIDTH_MODIFIER = 100; // Now percentage, 100 = 100%
+    public static final boolean DEFAULT_ENABLE_STAMINA_TRAILING_ICON = true;
+    public static final int DEFAULT_STAMINA_TRAILING_ICON_SIZE = 5;
+    public static final int DEFAULT_STAMINA_TRAILING_ICON_X_OFFSET = 0;
+    public static final int DEFAULT_STAMINA_TRAILING_ICON_Y_OFFSET = 0;
 
     public boolean enableStaminaBar;
-    public HUDPositioning.BarPlacement staminaBarAnchor;
+    public AnchorPoint staminaBarAnchor;
     public boolean fadeStaminaWhenFull;
     public TextBehavior showStaminaText;
     public HorizontalAlignment staminaTextAlign;
@@ -165,10 +186,15 @@ public class ClientConfig {
     public int staminaTextColor;
     public int staminaTextOpacity;
     public float staminaTextSize;
+    public int staminaBarWidthModifier; // 0-100, percentage of original width
+    public boolean enableStaminaTrailingIcon;
+    public int staminaTrailingIconSize;
+    public int staminaTrailingIconXOffset;
+    public int staminaTrailingIconYOffset;
 
     // Mana Defaults & Fields
     public static final ManaBarBehavior DEFAULT_MANA_BAR_BEHAVIOR = ManaBarBehavior.OFF;
-    public static final HUDPositioning.BarPlacement DEFAULT_MANA_BAR_ANCHOR = HUDPositioning.BarPlacement.ABOVE_UTILITIES;
+    public static final AnchorPoint DEFAULT_MANA_BAR_ANCHOR = AnchorPoint.BOTTOM_LEFT;
     public static final boolean DEFAULT_ENABLE_MANA_BACKGROUND = true;
     public static final boolean DEFAULT_ENABLE_MANA_FOREGROUND = true;
     public static final boolean DEFAULT_FADE_MANA_WHEN_FULL = true;
@@ -185,17 +211,22 @@ public class ClientConfig {
     public static final int DEFAULT_MANA_BAR_Y_OFFSET = 3;
     public static final int DEFAULT_MANA_BAR_WIDTH = 74;
     public static final int DEFAULT_MANA_BAR_HEIGHT = 4;
-    public static final int DEFAULT_MANA_BAR_FRAME_HEIGHT = 32;
     public static final int DEFAULT_MANA_BAR_ANIMATION_CYCLES = 32;
+    public static final int DEFAULT_MANA_BAR_FRAME_HEIGHT = 32;
     public static final int DEFAULT_MANA_OVERLAY_X_OFFSET = 0;
     public static final int DEFAULT_MANA_OVERLAY_Y_OFFSET = -3;
     public static final int DEFAULT_MANA_OVERLAY_WIDTH = 81;
     public static final int DEFAULT_MANA_OVERLAY_HEIGHT = 9;
     public static final int DEFAULT_MANA_TEXT_X_OFFSET = 3;
     public static final int DEFAULT_MANA_TEXT_Y_OFFSET = 3;
+    public static final int DEFAULT_MANA_BAR_WIDTH_MODIFIER = 100; // Now percentage, 100 = 100%
+    public static final boolean DEFAULT_ENABLE_MANA_TRAILING_ICON = true;
+    public static final int DEFAULT_MANA_TRAILING_ICON_SIZE = 5;
+    public static final int DEFAULT_MANA_TRAILING_ICON_X_OFFSET = 0;
+    public static final int DEFAULT_MANA_TRAILING_ICON_Y_OFFSET = 0;
 
     public ManaBarBehavior manaBarBehavior = DEFAULT_MANA_BAR_BEHAVIOR;
-    public HUDPositioning.BarPlacement manaBarAnchor = DEFAULT_MANA_BAR_ANCHOR;
+    public AnchorPoint manaBarAnchor = DEFAULT_MANA_BAR_ANCHOR;
     public boolean enableManaBackground = DEFAULT_ENABLE_MANA_BACKGROUND;
     public boolean enableManaForeground = DEFAULT_ENABLE_MANA_FOREGROUND;
     public boolean fadeManaWhenFull;
@@ -223,10 +254,15 @@ public class ClientConfig {
     public int manaTextColor;
     public int manaTextOpacity;
     public float manaTextSize;
+    public int manaBarWidthModifier; // 0-100, percentage of original width
+    public boolean enableManaTrailingIcon;
+    public int manaTrailingIconSize;
+    public int manaTrailingIconXOffset;
+    public int manaTrailingIconYOffset;
 
     // Armor Defaults & Fields
     public static final BarRenderBehavior DEFAULT_ARMOR_BAR_BEHAVIOR = BarRenderBehavior.HIDDEN;
-    public static final HUDPositioning.BarPlacement DEFAULT_ARMOR_BAR_ANCHOR = HUDPositioning.BarPlacement.ARMOR;
+    public static final AnchorPoint DEFAULT_ARMOR_BAR_ANCHOR = AnchorPoint.BOTTOM_LEFT;
     public static final int DEFAULT_MAX_EXPECTED_ARMOR = 20;
     public static final int DEFAULT_MAX_EXPECTED_PROT = 16;
     public static final int DEFAULT_ARMOR_BACKGROUND_WIDTH = 80;
@@ -254,7 +290,7 @@ public class ClientConfig {
     public static final int DEFAULT_ARMOR_BACKGROUND_Y_OFFSET = 0;
 
     public BarRenderBehavior armorBarBehavior;
-    public HUDPositioning.BarPlacement armorBarAnchor;
+    public AnchorPoint armorBarAnchor;
     public int maxExpectedArmor;
     public int maxExpectedProt;
     public int armorBackgroundWidth;
@@ -283,7 +319,7 @@ public class ClientConfig {
 
     // Air Defaults & Fields
     public static final BarRenderBehavior DEFAULT_AIR_BAR_BEHAVIOR = BarRenderBehavior.CUSTOM;
-    public static final HUDPositioning.BarPlacement DEFAULT_AIR_BAR_ANCHOR = HUDPositioning.BarPlacement.AIR;
+    public static final AnchorPoint DEFAULT_AIR_BAR_ANCHOR = AnchorPoint.BOTTOM_LEFT;
     public static final int DEFAULT_AIR_BACKGROUND_WIDTH = 80;
     public static final int DEFAULT_AIR_BACKGROUND_HEIGHT = 10;
     public static final int DEFAULT_AIR_BAR_WIDTH = 74;
@@ -310,7 +346,7 @@ public class ClientConfig {
     public static final FillDirection DEFAULT_AIR_FILL_DIRECTION = FillDirection.HORIZONTAL;
 
     public BarRenderBehavior airBarBehavior;
-    public HUDPositioning.BarPlacement airBarAnchor;
+    public AnchorPoint airBarAnchor;
     public int airBackgroundWidth;
     public int airBackgroundHeight;
     public int airBarWidth;
@@ -346,20 +382,18 @@ public class ClientConfig {
         this.globalTextSize = DEFAULT_TEXT_SIZE;
 
         this.enableHealthBar = DEFAULT_ENABLE_HEALTH_BAR;
-        this.healthBarAnchor = DEFAULT_HEALTH_BAR_ANCHOR;
+        this.healthBarAnchor = AnchorPoint.BOTTOM_LEFT;
         this.fadeHealthWhenFull = DEFAULT_FADE_HEALTH_WHEN_FULL;
         this.showHealthText = DEFAULT_SHOW_HEALTH_TEXT;
         this.healthTextAlign = DEFAULT_HEALTH_TEXT_ALIGN;
         this.enableHealthForeground = DEFAULT_ENABLE_HEALTH_FOREGROUND;
         this.enableHealthBackground = DEFAULT_ENABLE_HEALTH_BACKGROUND;
         this.healthFillDirection = DEFAULT_HEALTH_FILL_DIRECTION;
-        this.healthBackgroundWidth = DEFAULT_HEALTH_BACKGROUND_WIDTH;
+        // Removed width properties for Health Bar
         this.healthBackgroundHeight = DEFAULT_HEALTH_BACKGROUND_HEIGHT;
-        this.healthBarWidth = DEFAULT_HEALTH_BAR_WIDTH;
         this.healthBarHeight = DEFAULT_HEALTH_BAR_HEIGHT;
         this.healthBarAnimationCycles = DEFAULT_HEALTH_BAR_ANIMATION_CYCLES;
         this.healthBarFrameHeight = DEFAULT_HEALTH_BAR_FRAME_HEIGHT;
-        this.healthOverlayWidth = DEFAULT_HEALTH_OVERLAY_WIDTH;
         this.healthOverlayHeight = DEFAULT_HEALTH_OVERLAY_HEIGHT;
         this.healthBarXOffset = DEFAULT_HEALTH_BAR_X_OFFSET;
         this.healthBarYOffset = DEFAULT_HEALTH_BAR_Y_OFFSET;
@@ -372,10 +406,18 @@ public class ClientConfig {
         this.healthTextXOffset = DEFAULT_HEALTH_TEXT_X_OFFSET;
         this.healthTextYOffset = DEFAULT_HEALTH_TEXT_Y_OFFSET;
         this.healthTextColor = DEFAULT_HEALTH_TEXT_COLOR;
-        this.healthTextOpacity = DEFAULT_HEALTH_TEXT_OPACITY;
-        this.healthTextSize = DEFAULT_HEALTH_TEXT_SIZE;
+        this.healthTextOpacity = DEFAULT_TEXT_OPACITY;
+        this.healthTextSize = DEFAULT_TEXT_SIZE;
         this.healthAbsorptionTextXOffset = DEFAULT_HEALTH_ABSORPTION_TEXT_X_OFFSET;
         this.healthAbsorptionTextYOffset = DEFAULT_HEALTH_ABSORPTION_TEXT_Y_OFFSET;
+        this.healthBackgroundPadding = DEFAULT_HEALTH_BACKGROUND_PADDING;
+        this.healthForegroundPadding = DEFAULT_HEALTH_FOREGROUND_PADDING;
+        this.enableHealthTrailingIcon = DEFAULT_ENABLE_HEALTH_TRAILING_ICON;
+        this.healthTrailingIconSize = DEFAULT_HEALTH_TRAILING_ICON_SIZE;
+        this.healthTrailingIconXOffset = DEFAULT_HEALTH_TRAILING_ICON_X_OFFSET;
+        this.healthTrailingIconYOffset = DEFAULT_HEALTH_TRAILING_ICON_Y_OFFSET;
+        this.healthBarWidthModifier = DEFAULT_HEALTH_BAR_WIDTH_MODIFIER;
+        this.enableHealthRestorationOverlay = DEFAULT_ENABLE_HEALTH_RESTORATION_OVERLAY;
 
         this.enableStaminaBar = DEFAULT_ENABLE_STAMINA_BAR;
         this.staminaBarAnchor = DEFAULT_STAMINA_BAR_ANCHOR;
@@ -403,17 +445,22 @@ public class ClientConfig {
         this.staminaBackgroundYOffset = DEFAULT_STAMINA_BACKGROUND_Y_OFFSET;
         this.staminaTextXOffset = DEFAULT_STAMINA_TEXT_X_OFFSET;
         this.staminaTextYOffset = DEFAULT_STAMINA_TEXT_Y_OFFSET;
-        this.staminaTextColor = DEFAULT_STAMINA_TEXT_COLOR;
-        this.staminaTextOpacity = DEFAULT_STAMINA_TEXT_OPACITY;
-        this.staminaTextSize = DEFAULT_STAMINA_TEXT_SIZE;
+        this.staminaTextColor = DEFAULT_TEXT_COLOR;
+        this.staminaTextOpacity = DEFAULT_TEXT_OPACITY;
+        this.staminaTextSize = DEFAULT_TEXT_SIZE;
+        this.staminaBarWidthModifier = DEFAULT_STAMINA_BAR_WIDTH_MODIFIER;
+        this.enableStaminaTrailingIcon = DEFAULT_ENABLE_STAMINA_TRAILING_ICON;
+        this.staminaTrailingIconSize = DEFAULT_STAMINA_TRAILING_ICON_SIZE;
+        this.staminaTrailingIconXOffset = DEFAULT_STAMINA_TRAILING_ICON_X_OFFSET;
+        this.staminaTrailingIconYOffset = DEFAULT_STAMINA_TRAILING_ICON_Y_OFFSET;
 
         this.manaBarBehavior = DEFAULT_MANA_BAR_BEHAVIOR;
         this.manaBarAnchor = DEFAULT_MANA_BAR_ANCHOR;
+        this.enableManaBackground = DEFAULT_ENABLE_MANA_BACKGROUND;
+        this.enableManaForeground = DEFAULT_ENABLE_MANA_FOREGROUND;
         this.fadeManaWhenFull = DEFAULT_FADE_MANA_WHEN_FULL;
         this.showManaText = DEFAULT_SHOW_MANA_TEXT;
         this.manaTextAlign = DEFAULT_MANA_TEXT_ALIGN;
-        this.enableManaForeground = DEFAULT_ENABLE_MANA_FOREGROUND;
-        this.enableManaBackground = DEFAULT_ENABLE_MANA_BACKGROUND;
         this.manaFillDirection = DEFAULT_MANA_FILL_DIRECTION;
         this.manaBackgroundWidth = DEFAULT_MANA_BACKGROUND_WIDTH;
         this.manaBackgroundHeight = DEFAULT_MANA_BACKGROUND_HEIGHT;
@@ -436,6 +483,11 @@ public class ClientConfig {
         this.manaTextColor = DEFAULT_TEXT_COLOR;
         this.manaTextOpacity = DEFAULT_TEXT_OPACITY;
         this.manaTextSize = DEFAULT_TEXT_SIZE;
+        this.manaBarWidthModifier = DEFAULT_MANA_BAR_WIDTH_MODIFIER;
+        this.enableManaTrailingIcon = DEFAULT_ENABLE_MANA_TRAILING_ICON;
+        this.manaTrailingIconSize = DEFAULT_MANA_TRAILING_ICON_SIZE;
+        this.manaTrailingIconXOffset = DEFAULT_MANA_TRAILING_ICON_X_OFFSET;
+        this.manaTrailingIconYOffset = DEFAULT_MANA_TRAILING_ICON_Y_OFFSET;
 
         this.armorBarBehavior = DEFAULT_ARMOR_BAR_BEHAVIOR;
         this.armorBarAnchor = DEFAULT_ARMOR_BAR_ANCHOR;
@@ -459,7 +511,7 @@ public class ClientConfig {
         this.armorTextYOffset = DEFAULT_ARMOR_TEXT_Y_OFFSET;
         this.armorTextColor = DEFAULT_ARMOR_TEXT_COLOR;
         this.armorTextOpacity = DEFAULT_ARMOR_TEXT_OPACITY;
-        this.armorTextSize = DEFAULT_ARMOR_TEXT_SIZE;
+        this.armorTextSize = DEFAULT_TEXT_SIZE;
         this.showArmorText = DEFAULT_SHOW_ARMOR_TEXT;
         this.armorTextAlign = DEFAULT_ARMOR_TEXT_ALIGN;
         this.armorBackgroundXOffset = DEFAULT_ARMOR_BACKGROUND_X_OFFSET;
@@ -483,7 +535,7 @@ public class ClientConfig {
         this.airTextYOffset = DEFAULT_AIR_TEXT_Y_OFFSET;
         this.airTextColor = DEFAULT_AIR_TEXT_COLOR;
         this.airTextOpacity = DEFAULT_AIR_TEXT_OPACITY;
-        this.airTextSize = DEFAULT_AIR_TEXT_SIZE;
+        this.airTextSize = DEFAULT_TEXT_SIZE;
         this.showAirText = DEFAULT_SHOW_AIR_TEXT;
         this.airTextAlign = DEFAULT_AIR_TEXT_ALIGN;
         this.airBackgroundXOffset = DEFAULT_AIR_BACKGROUND_X_OFFSET;
@@ -547,7 +599,7 @@ public class ClientConfig {
 
         return loadedConfig;
     }
-    
+
     // Helper to ensure all fields have values, applying defaults if necessary
     // This makes the config resilient to being manually edited with missing fields
     private static boolean ensureDefaults(ClientConfig cfg) {
@@ -558,24 +610,35 @@ public class ClientConfig {
 
         // General - textScalingFactor is double, defaults are handled by constructor/GSON field init.
 
+        // Global bar width modifier validation
+        if (cfg.globalBarWidthModifier < 0 || cfg.globalBarWidthModifier > 100) { 
+            cfg.globalBarWidthModifier = DEFAULT_GLOBAL_BAR_WIDTH_MODIFIER; 
+            modified = true; 
+        }
+
         // Health
-        if (cfg.healthBarAnchor == null) { cfg.healthBarAnchor = DEFAULT_HEALTH_BAR_ANCHOR; modified = true; }
+        if (cfg.healthBarAnchor == null) { cfg.healthBarAnchor = AnchorPoint.BOTTOM_LEFT; modified = true; }
         if (cfg.showHealthText == null) { cfg.showHealthText = DEFAULT_SHOW_HEALTH_TEXT; modified = true; }
         if (cfg.healthTextAlign == null) { cfg.healthTextAlign = DEFAULT_HEALTH_TEXT_ALIGN; modified = true; }
         if (cfg.healthFillDirection == null) { cfg.healthFillDirection = DEFAULT_HEALTH_FILL_DIRECTION; modified = true; }
-        
-        // Ensure health overlay dimensions are within valid ranges
-        if (cfg.healthOverlayWidth > 256) { cfg.healthOverlayWidth = 256; modified = true; }
+
+        // Ensure health overlay dimensions are within valid ranges (height only, width is now dynamic)
         if (cfg.healthOverlayHeight > 256) { cfg.healthOverlayHeight = 256; modified = true; }
-        if (cfg.healthOverlayWidth < 1) { cfg.healthOverlayWidth = DEFAULT_HEALTH_OVERLAY_WIDTH; modified = true; }
         if (cfg.healthOverlayHeight < 1) { cfg.healthOverlayHeight = DEFAULT_HEALTH_OVERLAY_HEIGHT; modified = true; }
+
+        // Ensure health background dimensions are within valid ranges (height only, width is now dynamic)
+        if (cfg.healthBackgroundHeight < 1) { cfg.healthBackgroundHeight = DEFAULT_HEALTH_BACKGROUND_HEIGHT; modified = true; }
+
+        // Ensure health bar dimensions are within valid ranges (height only, width is now dynamic)
+        if (cfg.healthBarHeight < 1) { cfg.healthBarHeight = DEFAULT_HEALTH_BAR_HEIGHT; modified = true; }
+
 
         // Stamina
         if (cfg.staminaBarAnchor == null) { cfg.staminaBarAnchor = DEFAULT_STAMINA_BAR_ANCHOR; modified = true; }
         if (cfg.showStaminaText == null) { cfg.showStaminaText = DEFAULT_SHOW_STAMINA_TEXT; modified = true; }
         if (cfg.staminaTextAlign == null) { cfg.staminaTextAlign = DEFAULT_STAMINA_TEXT_ALIGN; modified = true; }
         if (cfg.staminaFillDirection == null) { cfg.staminaFillDirection = DEFAULT_STAMINA_FILL_DIRECTION; modified = true; }
-        
+
         // Ensure stamina overlay dimensions are within valid ranges
         if (cfg.staminaOverlayWidth > 256) { cfg.staminaOverlayWidth = 256; modified = true; }
         if (cfg.staminaOverlayHeight > 256) { cfg.staminaOverlayHeight = 256; modified = true; }
@@ -588,19 +651,25 @@ public class ClientConfig {
         if (cfg.manaTextAlign == null) { cfg.manaTextAlign = DEFAULT_MANA_TEXT_ALIGN; modified = true; }
         if (cfg.manaFillDirection == null) { cfg.manaFillDirection = DEFAULT_MANA_FILL_DIRECTION; modified = true; }
         if (cfg.manaBarBehavior == null) { cfg.manaBarBehavior = DEFAULT_MANA_BAR_BEHAVIOR; modified = true; }
-        
+
         // Ensure mana overlay dimensions are within valid ranges
         if (cfg.manaOverlayWidth > 256) { cfg.manaOverlayWidth = 256; modified = true; }
         if (cfg.manaOverlayHeight > 256) { cfg.manaOverlayHeight = 256; modified = true; }
         if (cfg.manaOverlayWidth < 1) { cfg.manaOverlayWidth = DEFAULT_MANA_OVERLAY_WIDTH; modified = true; }
         if (cfg.manaOverlayHeight < 1) { cfg.manaOverlayHeight = DEFAULT_MANA_OVERLAY_HEIGHT; modified = true; }
+        
+        // Ensure mana bar width modifier is within valid range
+        if (cfg.manaBarWidthModifier < 0 || cfg.manaBarWidthModifier > 100) { cfg.manaBarWidthModifier = DEFAULT_MANA_BAR_WIDTH_MODIFIER; modified = true; }
+
+        // Ensure stamina bar width modifier is within valid range
+        if (cfg.staminaBarWidthModifier < 0 || cfg.staminaBarWidthModifier > 100) { cfg.staminaBarWidthModifier = DEFAULT_STAMINA_BAR_WIDTH_MODIFIER; modified = true; }
 
         // Armor
         if (cfg.armorBarBehavior == null) { cfg.armorBarBehavior = DEFAULT_ARMOR_BAR_BEHAVIOR; modified = true; }
         if (cfg.armorBarAnchor == null) { cfg.armorBarAnchor = DEFAULT_ARMOR_BAR_ANCHOR; modified = true; }
         if (cfg.showArmorText == null) { cfg.showArmorText = DEFAULT_SHOW_ARMOR_TEXT; modified = true; }
         if (cfg.armorTextAlign == null) { cfg.armorTextAlign = DEFAULT_ARMOR_TEXT_ALIGN; modified = true; }
-        
+
         // Air
         if (cfg.airBarBehavior == null) { cfg.airBarBehavior = DEFAULT_AIR_BAR_BEHAVIOR; modified = true; }
         if (cfg.airBarAnchor == null) { cfg.airBarAnchor = DEFAULT_AIR_BAR_ANCHOR; modified = true; }
@@ -612,7 +681,7 @@ public class ClientConfig {
         // if not present in JSON and not initialized by GSON to the POJO's initialized values.
         // GSON usually respects field initializers if the field is missing in JSON.
         // The constructor already sets all defaults, so `new ClientConfig()` handles this for primitives.
-        // This `ensureDefaults` method is primarily for making sure enum (Object) fields are not null 
+        // This `ensureDefaults` method is primarily for making sure enum (Object) fields are not null
         // if the JSON was incomplete or manually edited to remove them.
 
         return modified;

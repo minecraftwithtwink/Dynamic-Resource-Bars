@@ -1,15 +1,7 @@
 package dev.muon.dynamic_resource_bars.event;
 
 import dev.muon.dynamic_resource_bars.config.ModConfigManager;
-import dev.muon.dynamic_resource_bars.render.ArmorBarRenderer;
-import dev.muon.dynamic_resource_bars.render.HealthBarRenderer;
-import dev.muon.dynamic_resource_bars.render.StaminaBarRenderer;
-import dev.muon.dynamic_resource_bars.render.ManaBarRenderer;
-import dev.muon.dynamic_resource_bars.render.AirBarRenderer;
-import dev.muon.dynamic_resource_bars.util.BarRenderBehavior;
-import dev.muon.dynamic_resource_bars.compat.ManaProviderManager;
-import dev.muon.dynamic_resource_bars.util.ManaBarBehavior;
-import dev.muon.dynamic_resource_bars.util.ManaProvider;
+import dev.muon.dynamic_resource_bars.render.BarRenderManager;
 #if FORGE
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -26,27 +18,23 @@ public class GuiOverlays {
         var player = minecraft.player;
         if (player == null) return;
 
-        var config = ModConfigManager.getClient();
+        // Use the centralized render manager to handle all bars in correct order
+        BarRenderManager.renderAllBars(graphics, player, partialTick);
 
+        // Update GUI heights for proper spacing
+        var config = ModConfigManager.getClient();
         if (config.enableHealthBar) {
-            HealthBarRenderer.render(graphics, player, player.getMaxHealth(), player.getHealth(), (int) player.getAbsorptionAmount(), partialTick);
             gui.leftHeight += config.healthBackgroundHeight + 1;
         }
         if (config.enableStaminaBar) {
-            StaminaBarRenderer.render(graphics, player, partialTick);
             gui.rightHeight += config.staminaBackgroundHeight + 1;
         }
-
-        if (config.armorBarBehavior == BarRenderBehavior.CUSTOM) {
-            ArmorBarRenderer.render(graphics, player);
+        if (config.armorBarBehavior == dev.muon.dynamic_resource_bars.util.BarRenderBehavior.CUSTOM) {
             gui.leftHeight += config.armorBackgroundHeight + 1;
         }
-
-        if (config.airBarBehavior == BarRenderBehavior.CUSTOM) {
-            AirBarRenderer.render(graphics, player, partialTick);
+        if (config.airBarBehavior == dev.muon.dynamic_resource_bars.util.BarRenderBehavior.CUSTOM) {
             gui.rightHeight += config.airBackgroundHeight + 1;
         }
-
     };
 }
 #endif

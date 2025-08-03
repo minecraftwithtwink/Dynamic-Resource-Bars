@@ -12,6 +12,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import dev.muon.dynamic_resource_bars.compat.AppleSkinCompat;
+import net.minecraft.util.Mth;
+import net.minecraft.resources.ResourceLocation;
 #if UPTO_20_1 && FABRIC
 import moriyashiine.bewitchment.api.BewitchmentAPI;
 import moriyashiine.bewitchment.common.registry.BWComponents;
@@ -25,9 +27,47 @@ import moriyashiine.bewitchment.api.component.BloodComponent;
 
 import vectorwing.farmersdelight.common.registry.ModEffects;
 import dev.muon.dynamic_resource_bars.config.ClientConfig;
+import net.minecraft.util.Mth;
+import net.minecraft.resources.ResourceLocation;
 
 public class StaminaBarRenderer {
     private static final float CRITICAL_THRESHOLD = 6.0f;
+    
+    // --- Dynamic Sizing Constants ---
+    // 1 Stamina Point = 4 pixels. This constant defines how many pixels 1 Stamina Point represents.
+    private static final float PIXELS_PER_STAMINA_POINT = 4.0f; // 4 pixels per stamina point (e.g., 20 max stamina = 80px bar)
+    private static final int MIN_BASE_BAR_WIDTH = 40; // Minimum width for the main stamina bar
+    private static final int MAX_BASE_BAR_WIDTH = 400; // Maximum width to prevent bars from becoming too large
+    
+    // --- Smart Scaling Constants ---
+    private static final float SCALING_BASE = 1.5f; // Base for logarithmic scaling
+    private static final float SCALING_FACTOR = 0.8f; // Controls how quickly the scaling curve flattens
+
+    // --- 9-Slice Constants for Background and Foreground Textures ---
+    // !!! IMPORTANT: These must match the actual pixel dimensions of your textures !!!
+    private static final int BACKGROUND_SOURCE_TEXTURE_WIDTH = 182;
+    private static final int BACKGROUND_SOURCE_TEXTURE_HEIGHT = 5;
+    private static final int FOREGROUND_SOURCE_TEXTURE_WIDTH = 84;
+    private static final int FOREGROUND_SOURCE_TEXTURE_HEIGHT = 12;
+    private static final int BAR_SOURCE_TEXTURE_WIDTH = 182;
+    private static final int BAR_SOURCE_TEXTURE_HEIGHT = 10;
+    private static final int HORIZONTAL_SLICE_PADDING = 22; // User specified 22 pixels for each horizontal end padding
+    private static final int BACKGROUND_FOREGROUND_TOTAL_PADDING = HORIZONTAL_SLICE_PADDING * 2; // Total width consumed by both end paddings (44 pixels)
+
+    // --- Nine-slice paddings for each element ---
+    private static final int CUSTOM_STAMINA_BAR_BACKGROUND_PADDING = 54; // For background
+    private static final int CUSTOM_STAMINA_BAR_FOREGROUND_PADDING = 40; // For foreground
+    private static final int CUSTOM_STAMINA_BAR_MAIN_PADDING = 40; // For main bar
+    private static final int CUSTOM_STAMINA_BAR_MAIN_SHRINK = 10; // For main bar
+
+    // For the new atlas: main bar is top half, overlay is bottom half
+    private static final int ATLAS_MAIN_BAR_HEIGHT = BAR_SOURCE_TEXTURE_HEIGHT / 2;
+    private static final int ATLAS_OVERLAY_HEIGHT = BAR_SOURCE_TEXTURE_HEIGHT / 2;
+    private static final int ATLAS_TOTAL_HEIGHT = BAR_SOURCE_TEXTURE_HEIGHT;
+
+    private static final float DAMPING_FACTOR = 0.85f; // Controls animation smoothness for stamina regeneration
+    private static float currentStaminaAnimated = -1.0f; // Animated stamina for the main bar
+    
     private static float lastStamina = -1;
     private static long fullStaminaStartTime = 0;
     private static boolean staminaBarSetVisible = true; // Default to visible
@@ -40,7 +80,6 @@ public class StaminaBarRenderer {
 
     private enum BarType {
         NORMAL("stamina_bar"),
-        BLOOD("stamina_bar_blood"),
         NOURISHED("stamina_bar_nourished"),
         HUNGER("stamina_bar_hunger"),
         CRITICAL("stamina_bar_critical"),
@@ -64,11 +103,6 @@ public class StaminaBarRenderer {
                 }
                 return MOUNTED;
             }
-            #if UPTO_20_1 && FABRIC
-            if (PlatformUtil.isModLoaded("bewitchment") && BewitchmentAPI.isVampire(player, true)) {
-                return BLOOD;
-            }
-            #endif
             if (PlatformUtil.isModLoaded("farmersdelight") && hasNourishmentEffect(player)) {
                 return NOURISHED;
             }
@@ -79,45 +113,119 @@ public class StaminaBarRenderer {
 
     }
 
+    /**
+     * Calculates a smart-scaled width that prevents bars from becoming too large.
+     * Uses logarithmic scaling to provide good visual distinction while limiting maximum size.
+     */
+    private static int calculateSmartScaledWidth(float maxValue, float pixelsPerPoint) {
+        // Linear scaling for small values (up to 20 points for stamina)
+        if (maxValue <= 20.0f) {
+            return Math.max(MIN_BASE_BAR_WIDTH, (int)(maxValue * pixelsPerPoint));
+        }
+        
+        // Logarithmic scaling for larger values to prevent excessive growth
+        float logValue = (float) Math.log(maxValue / 20.0f) / (float) Math.log(SCALING_BASE);
+        float scaledValue = 20.0f + (logValue * SCALING_FACTOR * 20.0f);
+        int scaledWidth = (int)(scaledValue * pixelsPerPoint);
+        
+        // Apply maximum width limit
+        return Math.min(MAX_BASE_BAR_WIDTH, Math.max(MIN_BASE_BAR_WIDTH, scaledWidth));
+    }
+
+    /**
+     * Returns the full width for the stamina bar and overlays
+     */
+    private static int getFullBarWidth(Player player, float maxStamina) {
+        int mainBarWidth = getMainBarWidth(player, maxStamina);
+        return mainBarWidth + BACKGROUND_FOREGROUND_TOTAL_PADDING;
+    }
+
+    /**
+     * Helper to get the dynamic width for the main bar
+     */
+    private static int getMainBarWidth(Player player, float maxStamina) {
+        ClientConfig config = ModConfigManager.getClient();
+        int baseWidth = calculateSmartScaledWidth(maxStamina, PIXELS_PER_STAMINA_POINT);
+        int percent = Math.max(0, Math.min(100, config.staminaBarWidthModifier));
+        int globalPercent = Math.max(0, Math.min(100, config.globalBarWidthModifier));
+        int scaledWidth = Math.round(baseWidth * (percent / 100.0f) * (globalPercent / 100.0f));
+        return Math.max(MIN_BASE_BAR_WIDTH, scaledWidth);
+    }
+
+
+
+    /**
+     * Updates animated values for smooth transitions
+     */
+    private static void updateAnimatedValues(Player player, float partialTicks, float actualStamina) {
+        // Initialize animated values if not set
+        if (currentStaminaAnimated < 0) {
+            currentStaminaAnimated = actualStamina;
+        }
+
+        // Smooth animation for stamina changes
+        float targetStamina = actualStamina;
+        float staminaDiff = targetStamina - currentStaminaAnimated;
+        
+        if (Math.abs(staminaDiff) > 0.01f) {
+            currentStaminaAnimated += staminaDiff * (1.0f - DAMPING_FACTOR);
+        } else {
+            currentStaminaAnimated = targetStamina;
+        }
+    }
+
     public static ScreenRect getScreenRect(Player player) {
         if (player == null) return new ScreenRect(0, 0, 0, 0);
-        Position staminaPosBase = HUDPositioning.getPositionFromAnchor(ModConfigManager.getClient().staminaBarAnchor);
-        Position staminaPos = staminaPosBase.offset(ModConfigManager.getClient().staminaTotalXOffset, ModConfigManager.getClient().staminaTotalYOffset);
-        int backgroundWidth = ModConfigManager.getClient().staminaBackgroundWidth;
-        int backgroundHeight = ModConfigManager.getClient().staminaBackgroundHeight;
-        return new ScreenRect(staminaPos.x(), staminaPos.y(), backgroundWidth, backgroundHeight);
+        
+        // Determine the bar values based on player state
+        BarValues values = getBarValues(player);
+        float maxStamina = values.max;
+        
+        ClientConfig config = ModConfigManager.getClient();
+        int mainBarWidth = getMainBarWidth(player, maxStamina);
+        int totalPadding = CUSTOM_STAMINA_BAR_MAIN_PADDING * 2;
+        
+        // Ensure minimum width that can accommodate the nine-slice padding
+        int minRequiredWidth = CUSTOM_STAMINA_BAR_BACKGROUND_PADDING * 2; // Left + right padding
+        int width = Math.max(minRequiredWidth, mainBarWidth + totalPadding);
+        int height = config.staminaBackgroundHeight;
+        
+        ScreenRect parentBox = new ScreenRect(0, 0, width, height);
+        Position anchorPos = HUDPositioning.alignBoundingBoxToAnchor(parentBox, config.staminaBarAnchor);
+        Position finalPos = anchorPos.offset(config.staminaTotalXOffset, config.staminaTotalYOffset);
+        return new ScreenRect(finalPos.x(), finalPos.y(), width, height);
     }
 
     public static ScreenRect getSubElementRect(SubElementType type, Player player) {
         ScreenRect complexRect = getScreenRect(player);
-        if (complexRect == null || complexRect.width() == 0 && complexRect.height() == 0)
+        if (complexRect == null || (complexRect.width() == 0 && complexRect.height() == 0))
             return new ScreenRect(0, 0, 0, 0);
 
+        // Determine the bar values based on player state
+        BarValues values = getBarValues(player);
+        float maxStamina = values.max;
+        
+        ClientConfig config = ModConfigManager.getClient();
         int x = complexRect.x();
         int y = complexRect.y();
-
+        int baseWidth = getMainBarWidth(player, maxStamina);
+        
         switch (type) {
             case BACKGROUND:
-                return new ScreenRect(x + ModConfigManager.getClient().staminaBackgroundXOffset,
-                        y + ModConfigManager.getClient().staminaBackgroundYOffset,
-                        ModConfigManager.getClient().staminaBackgroundWidth,
-                        ModConfigManager.getClient().staminaBackgroundHeight);
+                return new ScreenRect(x + config.staminaBackgroundXOffset, y + config.staminaBackgroundYOffset, baseWidth + CUSTOM_STAMINA_BAR_MAIN_SHRINK * 2, config.staminaBackgroundHeight);
             case BAR_MAIN:
-                return new ScreenRect(x + ModConfigManager.getClient().staminaBarXOffset,
-                        y + ModConfigManager.getClient().staminaBarYOffset,
-                        ModConfigManager.getClient().staminaBarWidth,
-                        ModConfigManager.getClient().staminaBarHeight);
+                return new ScreenRect(x + config.staminaBarXOffset + CUSTOM_STAMINA_BAR_BACKGROUND_PADDING, y + config.staminaBarYOffset, baseWidth, config.staminaBarHeight);
             case FOREGROUND_DETAIL:
-                return new ScreenRect(x + ModConfigManager.getClient().staminaOverlayXOffset,
-                        y + ModConfigManager.getClient().staminaOverlayYOffset,
-                        ModConfigManager.getClient().staminaOverlayWidth,
-                        ModConfigManager.getClient().staminaOverlayHeight);
+                return new ScreenRect(x + config.staminaOverlayXOffset, y + config.staminaOverlayYOffset, baseWidth + CUSTOM_STAMINA_BAR_MAIN_SHRINK * 2, config.staminaOverlayHeight);
             case TEXT:
-                // Text area now positioned relative to complexRect, using staminaBarWidth/Height for its dimensions
-                return new ScreenRect(x + ModConfigManager.getClient().staminaTextXOffset, 
-                                      y + ModConfigManager.getClient().staminaTextYOffset, 
-                                      ModConfigManager.getClient().staminaBarWidth, 
-                                      ModConfigManager.getClient().staminaBarHeight);
+                return new ScreenRect(x + config.staminaTextXOffset + CUSTOM_STAMINA_BAR_BACKGROUND_PADDING, y + config.staminaTextYOffset, baseWidth, config.staminaBarHeight);
+            case TRAILING_ICON:
+                // Fixed position at the end of the bar progress, using bar height
+                float staminaRatio = (maxStamina == 0) ? 0 : (currentStaminaAnimated / maxStamina);
+                staminaRatio = Mth.clamp(staminaRatio, 0.0f, 1.0f);
+                int iconX = x + config.staminaBarXOffset + CUSTOM_STAMINA_BAR_BACKGROUND_PADDING + (int)(baseWidth * staminaRatio);
+                int iconY = y + config.staminaBarYOffset;
+                return new ScreenRect(iconX, iconY, BACKGROUND_SOURCE_TEXTURE_HEIGHT, BACKGROUND_SOURCE_TEXTURE_HEIGHT);
             default:
                 return new ScreenRect(0, 0, 0, 0);
         }
@@ -126,6 +234,9 @@ public class StaminaBarRenderer {
     public static void render(GuiGraphics graphics, Player player, #if NEWER_THAN_20_1 DeltaTracker deltaTracker #else float partialTicks #endif ) {
         // Determine the bar values based on player state
         BarValues values = getBarValues(player);
+        
+        // Update animated values for smooth transitions
+        updateAnimatedValues(player, #if NEWER_THAN_20_1 deltaTracker.getGameTimeDeltaTicks() #else partialTicks #endif, values.current);
         
         // Determine fade behavior
         boolean shouldFade = shouldBarFade(player, values);
@@ -150,30 +261,37 @@ public class StaminaBarRenderer {
 
         ScreenRect complexRect = getScreenRect(player);
 
-        int animationCycles = ModConfigManager.getClient().staminaBarAnimationCycles;
-        int frameHeight = ModConfigManager.getClient().staminaBarFrameHeight;
-        int animOffset = (int) (((player.tickCount + #if NEWER_THAN_20_1 deltaTracker.getGameTimeDeltaTicks() #else partialTicks #endif ) / 3) % animationCycles) * frameHeight;
-        boolean isRightAnchored = ModConfigManager.getClient().staminaBarAnchor.getSide() == HUDPositioning.AnchorSide.RIGHT;
+        boolean isRightAnchored = ModConfigManager.getClient().staminaBarAnchor == AnchorPoint.TOP_RIGHT || ModConfigManager.getClient().staminaBarAnchor == AnchorPoint.CENTER_RIGHT || ModConfigManager.getClient().staminaBarAnchor == AnchorPoint.BOTTOM_RIGHT;
 
         if (ModConfigManager.getClient().enableStaminaBackground) {
             ScreenRect bgRect = getSubElementRect(SubElementType.BACKGROUND, player);
-            graphics.blit(
-                    DynamicResourceBars.loc("textures/gui/stamina_background.png"),
-                    bgRect.x(), bgRect.y(), 0, 0, bgRect.width(), bgRect.height(), 256, 256
+            RenderUtil.drawHorizontalNineSlice(graphics, DynamicResourceBars.loc("textures/gui/stamina_background.png"),
+                    bgRect.x(), bgRect.y(), bgRect.width(), bgRect.height(),
+                    BACKGROUND_SOURCE_TEXTURE_WIDTH, BACKGROUND_SOURCE_TEXTURE_HEIGHT,
+                    CUSTOM_STAMINA_BAR_BACKGROUND_PADDING, CUSTOM_STAMINA_BAR_BACKGROUND_PADDING,
+                    currentAlphaForRender // Pass current bar's alpha
             );
         }
 
         ScreenRect barRect = getSubElementRect(SubElementType.BAR_MAIN, player);
         renderBaseBar(graphics, player, values.current, values.max,
                 barRect,
-                animOffset, isRightAnchored);
+                isRightAnchored);
+
+        // --- Render Gradient Overlay ---
+        renderGradientOverlay(graphics, player, barRect, currentAlphaForRender, values.max);
+
+        // --- Render Trailing Icon ---
+        if (ModConfigManager.getClient().enableStaminaTrailingIcon) {
+            renderTrailingIcon(graphics, player, currentStaminaAnimated, barRect, currentAlphaForRender, values.max);
+        }
 
         // Overlays should not show for vampires or when mounted
         if (values.type == BarValueType.FOOD && !values.isMounted) {
             if (PlatformUtil.isModLoaded("appleskin")) {
                 ItemStack heldFood = getHeldFood(player);
-                renderHungerRestoredOverlay(graphics, player, heldFood, barRect, #if NEWER_THAN_20_1 deltaTracker.getGameTimeDeltaTicks() #else partialTicks #endif , animOffset, isRightAnchored);
-                renderSaturationOverlay(graphics, player, barRect, animOffset, isRightAnchored);
+                renderHungerRestoredOverlay(graphics, player, heldFood, barRect, #if NEWER_THAN_20_1 deltaTracker.getGameTimeDeltaTicks() #else partialTicks #endif , isRightAnchored);
+                renderSaturationOverlay(graphics, player, barRect, isRightAnchored);
             }
 
             if (PlatformUtil.isModLoaded("farmersdelight") && hasNourishmentEffect(player)) {
@@ -195,11 +313,11 @@ public class StaminaBarRenderer {
 
         if (ModConfigManager.getClient().enableStaminaForeground) {
             ScreenRect fgRect = getSubElementRect(SubElementType.FOREGROUND_DETAIL, player);
-            graphics.blit(
-                    DynamicResourceBars.loc("textures/gui/stamina_foreground.png"),
-                    fgRect.x(), fgRect.y(),
-                    0, 0, fgRect.width(), fgRect.height(),
-                    256, 256
+            RenderUtil.drawHorizontalNineSlice(graphics, DynamicResourceBars.loc("textures/gui/stamina_foreground.png"),
+                    fgRect.x(), fgRect.y(), fgRect.width(), fgRect.height(),
+                    FOREGROUND_SOURCE_TEXTURE_WIDTH, FOREGROUND_SOURCE_TEXTURE_HEIGHT,
+                    CUSTOM_STAMINA_BAR_FOREGROUND_PADDING, CUSTOM_STAMINA_BAR_FOREGROUND_PADDING,
+                    currentAlphaForRender // Pass current bar's alpha
             );
         }
 
@@ -220,7 +338,7 @@ public class StaminaBarRenderer {
                 baseX = textRect.x() + textRect.width();
             }
 
-            RenderUtil.renderText(values.current, values.max, graphics, baseX, textY, color, alignment);
+            // Remove: RenderUtil.renderText(values.current, values.max, graphics, baseX, textY, color, alignment);
         }
 
         if (EditModeManager.isEditModeEnabled()) {
@@ -249,6 +367,76 @@ public class StaminaBarRenderer {
         RenderSystem.disableBlend();
     }
 
+    /**
+     * Renders a gradient overlay on the stamina bar for visual enhancement.
+     * Uses the bottom half of the main stamina bar texture as an overlay.
+     */
+    private static void renderGradientOverlay(GuiGraphics graphics, Player player, ScreenRect barRect, float alpha, float maxStamina) {
+        int barWidth = barRect.width();
+        int barHeight = barRect.height();
+        
+        if (barWidth <= 0 || barHeight <= 0) return;
+        
+        // Calculate the current stamina fill ratio
+        float staminaRatio = (maxStamina == 0) ? 0 : (currentStaminaAnimated / maxStamina);
+        staminaRatio = Mth.clamp(staminaRatio, 0.0f, 1.0f);
+        int filledWidth = (int)(barWidth * staminaRatio);
+        
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        
+        if (filledWidth > 0) {
+            ResourceLocation barTexture = DynamicResourceBars.loc("textures/gui/stamina_bar.png");
+            int overlayWidth = Math.min(CUSTOM_STAMINA_BAR_MAIN_PADDING, filledWidth);
+            int overlayX = barRect.x() + filledWidth - overlayWidth;
+            graphics.blit(
+                barTexture,
+                overlayX, barRect.y(),
+                BAR_SOURCE_TEXTURE_WIDTH - overlayWidth, ATLAS_MAIN_BAR_HEIGHT, // U, V
+                overlayWidth, barRect.height(),
+                BAR_SOURCE_TEXTURE_WIDTH, ATLAS_TOTAL_HEIGHT
+            );
+        }
+        
+        RenderSystem.disableBlend();
+    }
+
+    /**
+     * Renders the trailing icon that follows the stamina bar progress.
+     * The icon is positioned at the end of the current stamina fill and moves with the bar.
+     * @param graphics GuiGraphics instance.
+     * @param player The player entity.
+     * @param staminaToDisplay The exact same stamina value used by the main bar for fill ratio calculation.
+     * @param mainBarRect The main bar's rectangle for positioning calculations.
+     * @param alpha The alpha value for rendering.
+     * @param maxStamina The maximum stamina value for scaling.
+     */
+    private static void renderTrailingIcon(GuiGraphics graphics, Player player, float staminaToDisplay, ScreenRect mainBarRect, float alpha, float maxStamina) {
+        // Calculate the position using the exact same fill ratio calculation as the main bar
+        float fillRatio = (maxStamina == 0) ? 0.0f : (staminaToDisplay / maxStamina);
+        fillRatio = Mth.clamp(fillRatio, 0.0f, 1.0f);
+        
+        int iconX = mainBarRect.x() + (int)(mainBarRect.width() * fillRatio);
+        int iconY = mainBarRect.y();
+        
+        // Apply alpha blending
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, alpha);
+        
+        // Render the trailing icon texture with fixed bar height
+        graphics.blit(
+            DynamicResourceBars.loc("textures/gui/stamina_trailing_icon.png"),
+            iconX, iconY,
+            0, 0,
+            BACKGROUND_SOURCE_TEXTURE_HEIGHT, BACKGROUND_SOURCE_TEXTURE_HEIGHT,
+            BACKGROUND_SOURCE_TEXTURE_HEIGHT, BACKGROUND_SOURCE_TEXTURE_HEIGHT
+        );
+        
+        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
+        RenderSystem.disableBlend();
+    }
+
     // Helper class to hold bar values
     private static class BarValues {
         float current;
@@ -266,7 +454,7 @@ public class StaminaBarRenderer {
     
     private enum BarValueType {
         FOOD,
-        BLOOD,
+        NOURISHED,
         MOUNT_HEALTH
     }
     
@@ -295,7 +483,6 @@ public class StaminaBarRenderer {
         switch (values.type) {
             case MOUNT_HEALTH:
                 return ModConfigManager.getClient().fadeHealthWhenFull && values.current >= values.max;
-            case BLOOD:
             case FOOD:
                 return ModConfigManager.getClient().fadeStaminaWhenFull && values.current >= values.max;
             default:
@@ -305,57 +492,41 @@ public class StaminaBarRenderer {
 
     private static void renderBaseBar(GuiGraphics graphics, Player player, float currentStamina, float maxStamina,
                                       ScreenRect barAreaRect,
-                                      int animOffset, boolean isRightAnchored) {
+                                      boolean isRightAnchored) {
         BarType barType = BarType.fromPlayerState(player, currentStamina);
         int totalBarWidth = barAreaRect.width();
         int barHeight = barAreaRect.height();
-        float currentStaminaRatio = (maxStamina == 0) ? 0.0f : (currentStamina / maxStamina);
+        float currentStaminaRatio = (maxStamina == 0) ? 0.0f : (currentStaminaAnimated / maxStamina);
 
         FillDirection fillDirection = ModConfigManager.getClient().staminaFillDirection;
 
         if (fillDirection == FillDirection.VERTICAL) {
             int partialBarHeight = (int) (barHeight * currentStaminaRatio);
-            if (partialBarHeight <= 0 && currentStamina > 0) partialBarHeight = 1;
+            if (partialBarHeight <= 0 && currentStaminaAnimated > 0) partialBarHeight = 1;
             if (partialBarHeight > barHeight) partialBarHeight = barHeight;
 
             int barX = barAreaRect.x();
             int barY = barAreaRect.y() + (barHeight - partialBarHeight); // Fill from bottom up
-            // Adjust texture V offset to draw the correct part of the texture
-            int textureVOffset = animOffset + (barHeight - partialBarHeight);
-
             if (partialBarHeight > 0) {
                 graphics.blit(
                         DynamicResourceBars.loc("textures/gui/" + barType.getTexture() + ".png"),
                         barX, barY,
-                        0, textureVOffset, // Use 0 for U, adjusted V for vertical fill
+                        0, 0, // Use 0 for U, 0 for V (static texture)
                         totalBarWidth, partialBarHeight, // Use full width, partial height
-                        256, 1024
+                        256, 256
                 );
             }
         } else { // HORIZONTAL
-            int partialBarWidth = (int) (totalBarWidth * currentStaminaRatio);
-            if (partialBarWidth <= 0 && currentStamina > 0) partialBarWidth = 1;
-            if (partialBarWidth > totalBarWidth) partialBarWidth = totalBarWidth;
-
-            int barRenderX = barAreaRect.x();
-            int barRenderY = barAreaRect.y();
-            int uTexOffset = 0; // Default for left-anchored
-
-            if (isRightAnchored) {
-                barRenderX = barAreaRect.x() + totalBarWidth - partialBarWidth;
-                uTexOffset = totalBarWidth - partialBarWidth; // Sample the right part of the texture
-            }
-            if (uTexOffset < 0) uTexOffset = 0; // Prevent negative texture offset
-
-            if (partialBarWidth > 0) {
-                graphics.blit(
-                        DynamicResourceBars.loc("textures/gui/" + barType.getTexture() + ".png"),
-                        barRenderX, barRenderY,
-                        uTexOffset, animOffset, // Use calculated uTexOffset
-                        partialBarWidth, barHeight,
-                        256, 1024
-                );
-            }
+            drawAsymmetricBarNineSlice(
+                graphics,
+                DynamicResourceBars.loc("textures/gui/" + barType.getTexture() + ".png"),
+                barAreaRect.x(), barAreaRect.y(),
+                totalBarWidth, barHeight,
+                BAR_SOURCE_TEXTURE_WIDTH, BAR_SOURCE_TEXTURE_HEIGHT,
+                CUSTOM_STAMINA_BAR_MAIN_PADDING, // Left cap width
+                0,  // Right cap width (no right padding)
+                currentStaminaRatio
+            );
         }
     }
 
@@ -467,7 +638,7 @@ public class StaminaBarRenderer {
         return Math.max(0.0f, 1.0f - (timeSinceDisabled / (float) RenderUtil.BAR_FADEOUT_DURATION));
     }
 
-    private static void renderSaturationOverlay(GuiGraphics graphics, Player player, ScreenRect barRect, int animOffset, boolean isRightAnchored) {
+    private static void renderSaturationOverlay(GuiGraphics graphics, Player player, ScreenRect barRect, boolean isRightAnchored) {
         if (!PlatformUtil.isModLoaded("appleskin")) {
             return;
         }
@@ -526,7 +697,7 @@ public class StaminaBarRenderer {
     }
 
     private static void renderHungerRestoredOverlay(GuiGraphics graphics, Player player, ItemStack heldFood,
-                                                    ScreenRect barRect, float partialTicks, int animOffset, boolean isRightAnchored) {
+                                                    ScreenRect barRect, float partialTicks, boolean isRightAnchored) {
         if (!PlatformUtil.isModLoaded("appleskin")) {
             return;
         }
@@ -558,14 +729,13 @@ public class StaminaBarRenderer {
 
             if (overlayHeight > 0) {
                 int yPos = barRect.y() + (barRect.height() - restoredHeight);
-                int textureVOffset = animOffset + (barRect.height() - restoredHeight);
 
                 graphics.blit(
                         DynamicResourceBars.loc("textures/gui/" + barType.getTexture() + ".png"),
                         barRect.x(), yPos,
-                        0, textureVOffset,
+                        0, 0, // Static texture, no animation
                         barRect.width(), overlayHeight,
-                        256, 1024
+                        256, 256
                 );
             }
         } else { // HORIZONTAL
@@ -589,9 +759,9 @@ public class StaminaBarRenderer {
                 graphics.blit(
                         DynamicResourceBars.loc("textures/gui/" + barType.getTexture() + ".png"),
                         xDrawPos, barRect.y(),
-                        uTexOffset, animOffset, // Use the calculated uTexOffset
+                        uTexOffset, 0, // Use the calculated uTexOffset, static texture
                         overlayWidth, barRect.height(),
-                        256, 1024
+                        256, 256
                 );
             }
         }
@@ -637,5 +807,124 @@ public class StaminaBarRenderer {
         #endif
             // TODO: More vampire transformation mods here
         return false;
+    }
+
+    /**
+     * Nine-slice rendering method for asymmetric bars (left padding only)
+     */
+    private static void drawAsymmetricBarNineSlice(GuiGraphics graphics, ResourceLocation texture, int x, int y, int destWidth, int destHeight, int sourceTextureWidth, int sourceTextureHeight, int leftPadding, int rightPadding, float fillRatio) {
+        int filledWidth = (int)(destWidth * fillRatio);
+        if (filledWidth <= 0) return;
+        
+        // Handle case where bar is smaller than left padding
+        if (filledWidth <= leftPadding) {
+            int leftWidth = filledWidth;
+            for (int tileY = 0; tileY < destHeight; tileY += sourceTextureHeight) {
+                int drawHeight = Math.min(sourceTextureHeight, destHeight - tileY);
+                graphics.blit(texture, x, y + tileY, 0, 0, leftWidth, drawHeight, sourceTextureWidth, sourceTextureHeight);
+            }
+            return;
+        }
+        
+        // Draw left padding (tile vertically)
+        if (leftPadding > 0) {
+            int leftWidth = leftPadding;
+            for (int tileY = 0; tileY < destHeight; tileY += sourceTextureHeight) {
+                int drawHeight = Math.min(sourceTextureHeight, destHeight - tileY);
+                graphics.blit(texture, x, y + tileY, 0, 0, leftWidth, drawHeight, sourceTextureWidth, sourceTextureHeight);
+            }
+        }
+        
+        // Draw tiled middle (horizontally and vertically)
+        int sourceMiddleWidth = sourceTextureWidth - leftPadding - rightPadding;
+        int destMiddleWidth = filledWidth - leftPadding - rightPadding;
+        
+        // Only draw middle if there's space for it
+        if (destMiddleWidth > 0 && sourceMiddleWidth > 0) {
+            int tiledX = x + leftPadding;
+            int remaining = destMiddleWidth;
+            while (remaining > 0) {
+                int tileWidth = Math.min(sourceMiddleWidth, remaining);
+                for (int tileY = 0; tileY < destHeight; tileY += sourceTextureHeight) {
+                    int drawHeight = Math.min(sourceTextureHeight, destHeight - tileY);
+                    graphics.blit(texture, tiledX, y + tileY, leftPadding, 0, tileWidth, drawHeight, sourceTextureWidth, sourceTextureHeight);
+                }
+                tiledX += tileWidth;
+                remaining -= tileWidth;
+            }
+        }
+        
+        // Draw right padding (tile vertically) - only if there's enough filled width and right padding exists
+        if (filledWidth > leftPadding && rightPadding > 0) {
+            int rightStart = x + filledWidth - rightPadding;
+            int rightWidth = Math.min(rightPadding, filledWidth - leftPadding);
+            if (rightWidth > 0) {
+                for (int tileY = 0; tileY < destHeight; tileY += sourceTextureHeight) {
+                    int drawHeight = Math.min(sourceTextureHeight, destHeight - tileY);
+                    graphics.blit(texture, rightStart, y + tileY, sourceTextureWidth - rightPadding, 0, rightWidth, drawHeight, sourceTextureWidth, sourceTextureHeight);
+                }
+            }
+        }
+    }
+
+    /**
+     * Nine-slice rendering method with vertical offset for animated bars
+     */
+    private static void drawAsymmetricBarNineSliceWithV(GuiGraphics graphics, ResourceLocation texture, int x, int y, int destWidth, int destHeight, int sourceTextureWidth, int sourceTextureHeight, int leftPadding, int rightPadding, float fillRatio, int vOffset) {
+        int filledWidth = (int)(destWidth * fillRatio);
+        if (filledWidth <= 0) return;
+
+        // If the bar is smaller than the sum of paddings, only draw what fits
+        if (filledWidth <= rightPadding) {
+            // Only draw the right cap, aligned to the right edge
+            int rightStart = x;
+            int rightWidth = filledWidth;
+            for (int tileY = 0; tileY < destHeight; tileY += sourceTextureHeight) {
+                int drawHeight = Math.min(sourceTextureHeight, destHeight - tileY);
+                graphics.blit(texture, rightStart, y + tileY, sourceTextureWidth - rightPadding, vOffset, rightWidth, drawHeight, sourceTextureWidth, sourceTextureHeight);
+            }
+            return;
+        }
+        if (filledWidth <= leftPadding) {
+            // Only draw the left cap
+            int leftWidth = filledWidth;
+            for (int tileY = 0; tileY < destHeight; tileY += sourceTextureHeight) {
+                int drawHeight = Math.min(sourceTextureHeight, destHeight - tileY);
+                graphics.blit(texture, x, y + tileY, 0, vOffset, leftWidth, drawHeight, sourceTextureWidth, sourceTextureHeight);
+            }
+            return;
+        }
+
+        // Draw left padding (tile vertically)
+        if (leftPadding > 0) {
+            int leftWidth = leftPadding;
+            for (int tileY = 0; tileY < destHeight; tileY += sourceTextureHeight) {
+                int drawHeight = Math.min(sourceTextureHeight, destHeight - tileY);
+                graphics.blit(texture, x, y + tileY, 0, vOffset, leftWidth, drawHeight, sourceTextureWidth, sourceTextureHeight);
+            }
+        }
+        // Draw tiled middle (horizontally and vertically)
+        int sourceMiddleWidth = sourceTextureWidth - leftPadding - rightPadding;
+        int destMiddleWidth = filledWidth - leftPadding - rightPadding;
+        int tiledX = x + leftPadding;
+        int remaining = destMiddleWidth;
+        while (remaining > 0) {
+            int tileWidth = Math.min(sourceMiddleWidth, remaining);
+            for (int tileY = 0; tileY < destHeight; tileY += sourceTextureHeight) {
+                int drawHeight = Math.min(sourceTextureHeight, destHeight - tileY);
+                graphics.blit(texture, tiledX, y + tileY, leftPadding, vOffset, tileWidth, drawHeight, sourceTextureWidth, sourceTextureHeight);
+            }
+            tiledX += tileWidth;
+            remaining -= tileWidth;
+        }
+        // Draw right padding (tile vertically)
+        if (rightPadding > 0) {
+            int rightStart = x + filledWidth - rightPadding;
+            int rightWidth = rightPadding;
+            for (int tileY = 0; tileY < destHeight; tileY += sourceTextureHeight) {
+                int drawHeight = Math.min(sourceTextureHeight, destHeight - tileY);
+                graphics.blit(texture, rightStart, y + tileY, sourceTextureWidth - rightPadding, vOffset, rightWidth, drawHeight, sourceTextureWidth, sourceTextureHeight);
+            }
+        }
     }
 }

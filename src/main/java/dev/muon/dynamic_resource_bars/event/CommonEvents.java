@@ -2,10 +2,7 @@ package dev.muon.dynamic_resource_bars.event;
 
 #if NEWER_THAN_20_1
 import dev.muon.dynamic_resource_bars.config.ModConfigManager;
-import dev.muon.dynamic_resource_bars.render.AirBarRenderer;
-import dev.muon.dynamic_resource_bars.render.ArmorBarRenderer;
-import dev.muon.dynamic_resource_bars.render.HealthBarRenderer;
-import dev.muon.dynamic_resource_bars.render.StaminaBarRenderer;
+import dev.muon.dynamic_resource_bars.render.BarRenderManager;
 import dev.muon.dynamic_resource_bars.util.BarRenderBehavior;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -27,10 +24,10 @@ public class CommonEvents {
             return EventResult.PASS;
         }
 
-        float absorptionAmount = player.getAbsorptionAmount();
-        HealthBarRenderer.render(guiGraphics, player,
-                player.getMaxHealth(), player.getHealth(),
-                (int) absorptionAmount, deltaTracker );
+        // Use the centralized render manager to handle all bars in correct order
+        BarRenderManager.renderAllBars(guiGraphics, player, deltaTracker);
+
+        // Update GUI heights for proper spacing
         ClientAbstractions.INSTANCE.addGuiLeftHeight(minecraft.gui, config.healthBackgroundHeight + 1);
         return EventResult.INTERRUPT;
     }
@@ -46,7 +43,7 @@ public class CommonEvents {
             return EventResult.PASS;
         }
 
-        StaminaBarRenderer.render(guiGraphics, player, deltaTracker );
+        // Stamina bar is now handled by BarRenderManager
         ClientAbstractions.INSTANCE.addGuiRightHeight(minecraft.gui, config.staminaBackgroundHeight + 1);
 
         return EventResult.INTERRUPT;
@@ -65,8 +62,8 @@ public class CommonEvents {
             return EventResult.INTERRUPT;
         }
 
+        // Armor bar is now handled by BarRenderManager
         if (armorBehavior == BarRenderBehavior.CUSTOM) {
-            ArmorBarRenderer.render(guiGraphics, player);
             ClientAbstractions.INSTANCE.addGuiLeftHeight(minecraft.gui, config.armorBackgroundHeight + 1);
         }
         return EventResult.INTERRUPT;
@@ -85,8 +82,8 @@ public class CommonEvents {
             return EventResult.INTERRUPT;
         }
 
+        // Air bar is now handled by BarRenderManager
         if (airBehavior == BarRenderBehavior.CUSTOM) {
-            AirBarRenderer.render(guiGraphics, player, deltaTracker);
             ClientAbstractions.INSTANCE.addGuiRightHeight(minecraft.gui, config.airBackgroundHeight + 1);
         }
         return EventResult.INTERRUPT;

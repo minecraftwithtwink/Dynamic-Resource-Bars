@@ -7,8 +7,7 @@ import org.spongepowered.asm.mixin.Mixin;
 #if FABRIC && UPTO_20_1
 import dev.muon.dynamic_resource_bars.config.ModConfigManager;
 import dev.muon.dynamic_resource_bars.util.ManaBarBehavior;
-import dev.muon.dynamic_resource_bars.render.ManaBarRenderer;
-import dev.muon.dynamic_resource_bars.compat.ManaProviderManager;
+
 import com.cleannrooster.rpgmana.client.InGameHud;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -24,12 +23,9 @@ public class InGameHudMixin {
     public void cancelManaOverlay(GuiGraphics drawContext, float tickDelta, CallbackInfo ci) {
         var config = ModConfigManager.getClient();
         if (config.manaBarBehavior == ManaBarBehavior.RPG_MANA) {
-            Player player = Minecraft.getInstance().player;
-            var manaProvider = ManaProviderManager.getProviderForBehavior(ManaBarBehavior.RPG_MANA);
-            if (player != null && manaProvider != null && manaProvider.getMaxMana() > 0) {
-                ManaBarRenderer.render(drawContext, tickDelta, manaProvider, player);
-            }
             ci.cancel();
+            // Mana bar is now handled by the centralized BarRenderManager
+            // No need to render here as it will be rendered in the correct order
         }
     }
     #endif

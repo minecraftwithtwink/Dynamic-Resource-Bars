@@ -20,6 +20,8 @@ public class ModConfigScreen extends Screen {
     private EditBox textOpacityBox;
     private EditBox textSizeBox;
 
+
+
     public ModConfigScreen(Screen parent) {
         super(Component.literal(DynamicResourceBars.MODNAME + " Configuration"));
         this.parentScreen = parent;
@@ -125,7 +127,7 @@ public class ModConfigScreen extends Screen {
         });
         this.addRenderableWidget(textSizeBox);
 
-        currentY += buttonHeight + 5;
+
 
         // Done Button
         this.addRenderableWidget(Button.builder(

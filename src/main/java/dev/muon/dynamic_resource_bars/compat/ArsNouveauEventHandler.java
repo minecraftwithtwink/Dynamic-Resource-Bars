@@ -3,8 +3,7 @@ package dev.muon.dynamic_resource_bars.compat;
 import dev.muon.dynamic_resource_bars.DynamicResourceBars;
 import dev.muon.dynamic_resource_bars.config.ModConfigManager;
 import dev.muon.dynamic_resource_bars.util.ManaBarBehavior;
-import dev.muon.dynamic_resource_bars.render.ManaBarRenderer;
-import dev.muon.dynamic_resource_bars.compat.ManaProviderManager;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Player;
 
@@ -44,11 +43,8 @@ public class ArsNouveauEventHandler {
 
             if (cancelEvent) {
                 event.setCanceled(true);
-                Player player = Minecraft.getInstance().player;
-                var manaProvider = ManaProviderManager.getProviderForBehavior(ManaBarBehavior.ARS_NOUVEAU);
-                if (player != null && manaProvider != null && manaProvider.getMaxMana() > 0) {
-                    ManaBarRenderer.render(event.getGuiGraphics(), event.getPartialTick(), manaProvider, player);
-                }
+                // Mana bar is now handled by the centralized BarRenderManager
+                // No need to render here as it will be rendered in the correct order
             }
         }
     }

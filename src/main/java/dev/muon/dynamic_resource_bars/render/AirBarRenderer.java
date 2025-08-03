@@ -17,6 +17,7 @@ import dev.muon.dynamic_resource_bars.util.HorizontalAlignment;
 import dev.muon.dynamic_resource_bars.util.TextBehavior;
 import net.minecraft.client.Minecraft;
 import dev.muon.dynamic_resource_bars.util.FillDirection;
+import dev.muon.dynamic_resource_bars.util.AnchorPoint;
 
 #if NEWER_THAN_20_1
 import net.minecraft.client.DeltaTracker;
@@ -90,11 +91,12 @@ public class AirBarRenderer {
     public static ScreenRect getScreenRect(Player player) {
         if (player == null) return new ScreenRect(0,0,0,0);
         var config = ModConfigManager.getClient();
-        Position anchorPos = HUDPositioning.getPositionFromAnchor(config.airBarAnchor);
-        
-        Position finalPos = anchorPos.offset(config.airTotalXOffset, config.airTotalYOffset);
-        int backgroundWidth = config.airBackgroundWidth;
+        int globalPercent = Math.max(0, Math.min(100, config.globalBarWidthModifier));
+        int backgroundWidth = Math.round(config.airBackgroundWidth * (globalPercent / 100.0f));
         int backgroundHeight = config.airBackgroundHeight;
+        ScreenRect parentBox = new ScreenRect(0, 0, backgroundWidth, backgroundHeight);
+        Position anchorPos = HUDPositioning.alignBoundingBoxToAnchor(parentBox, config.airBarAnchor);
+        Position finalPos = anchorPos.offset(config.airTotalXOffset, config.airTotalYOffset);
         return new ScreenRect(finalPos.x(), finalPos.y(), backgroundWidth, backgroundHeight);
     }
 
@@ -105,6 +107,7 @@ public class AirBarRenderer {
         }
 
         ClientConfig config = ModConfigManager.getClient();
+        int globalPercent = Math.max(0, Math.min(100, config.globalBarWidthModifier));
         int x = complexRect.x();
         int y = complexRect.y();
 
@@ -112,18 +115,18 @@ public class AirBarRenderer {
             case BACKGROUND:
                 return new ScreenRect(x + config.airBackgroundXOffset, 
                                       y + config.airBackgroundYOffset,
-                                      config.airBackgroundWidth,
+                                      Math.round(config.airBackgroundWidth * (globalPercent / 100.0f)),
                                       config.airBackgroundHeight);
             case BAR_MAIN:
                 return new ScreenRect(x + config.airBarXOffset,
                                       y + config.airBarYOffset,
-                                      config.airBarWidth,
+                                      Math.round(config.airBarWidth * (globalPercent / 100.0f)),
                                       config.airBarHeight);
             case TEXT:
                 // Text area now positioned relative to complexRect, using airBarWidth/Height for its dimensions
                 return new ScreenRect(x + config.airTextXOffset, 
                                       y + config.airTextYOffset, 
-                                      config.airBarWidth, // Text area width based on bar width
+                                      Math.round(config.airBarWidth * (globalPercent / 100.0f)), // Text area width based on bar width
                                       config.airBarHeight); // Text area height based on bar height
             case ICON:
                 // Icon positioned relative to complexRect top-left
@@ -160,8 +163,8 @@ public class AirBarRenderer {
         RenderSystem.enableBlend();
         RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, currentAlphaForRender);
 
-        Position airPos = HUDPositioning.getPositionFromAnchor(config.airBarAnchor);
-        boolean isRightAnchored = config.airBarAnchor.getSide() == HUDPositioning.AnchorSide.RIGHT;
+        Position airPos = HUDPositioning.getHealthAnchor(); // Or implement getAirAnchor() if needed
+        boolean isRightAnchored = config.airBarAnchor == AnchorPoint.TOP_RIGHT || config.airBarAnchor == AnchorPoint.CENTER_RIGHT || config.airBarAnchor == AnchorPoint.BOTTOM_RIGHT;
 
         airPos = airPos.offset(config.airTotalXOffset, config.airTotalYOffset);
 
@@ -237,24 +240,6 @@ public class AirBarRenderer {
                         256, 1024                  // textureSheetWidth, textureSheetHeight
                 );
             }
-        }
-
-        if (shouldRenderText() || EditModeManager.isEditModeEnabled()) {
-            ScreenRect textRect = getSubElementRect(SubElementType.TEXT, player);
-            int textX = textRect.x() + (textRect.width() / 2);
-            int textY = textRect.y() + (textRect.height() / 2);
-            int color = getTextColor();
-            HorizontalAlignment alignment = config.airTextAlign;
-
-            int baseX = textRect.x();
-            if (alignment == HorizontalAlignment.CENTER) {
-                baseX = textX;
-            } else if (alignment == HorizontalAlignment.RIGHT) {
-                baseX = textRect.x() + textRect.width();
-            }
-
-            RenderUtil.renderText(currentAir, maxAir,
-                    graphics, baseX, textY, color, alignment);
         }
 
         if (config.enableAirIcon || EditModeManager.isEditModeEnabled()) {

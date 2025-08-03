@@ -1,5 +1,3 @@
-import org.gradle.api.Project
-import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.kotlin.dsl.annotationProcessor
 import org.gradle.kotlin.dsl.modRuntimeOnly
 import toni.blahaj.setup.*
@@ -40,7 +38,6 @@ blahaj {
 		// Integrations
 		// TODO: Mana: Ars Nouveau, Iron's Spellbooks, RPGMana, Mana Attributes, Archon?
 		// Frostiful, Scorchful
-		if (project.hasProperty("thermoo")) { deps.modImplementation("maven.modrinth:thermoo:${property("thermoo")}-$mc") }
 
 		// Appleskin
 		if (project.hasProperty("clothconfig")) { deps.modRuntimeOnly("me.shedaniel.cloth:cloth-config-$loader:${property("clothconfig")}") }
@@ -49,9 +46,6 @@ blahaj {
 		// Farmer's Delight
 		if (project.hasProperty("farmersdelight_forge")) { deps.modImplementation("maven.modrinth:farmers-delight:$mc-${property("farmersdelight_forge")}-$loader") }
 		if (project.hasProperty("farmersdelight_fabric")) { deps.modImplementation("vectorwing:FarmersDelight:$mc-${property("farmersdelight_fabric")}+refabricated") }
-
-		// Bewitchment
-		if (project.hasProperty("bewitchment")) { deps.modCompileOnly("maven.modrinth:bewitchment:${property("bewitchment")}") }
 
 		// Ars Nouveau
 		if (project.hasProperty("ars_nouveau")) { deps.modCompileOnly("com.hollingsworth.ars_nouveau:ars_nouveau-$mc:${property("ars_nouveau")}") }
